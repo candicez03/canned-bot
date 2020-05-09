@@ -27,11 +27,11 @@ commands = {
     'reset prefix': 'Resets my prefix in this server to its default. You can also mention me and shout out help to reset ;p',
 }
 
-commandEmbed = discord.Embed(title="Help", description="Candy is enslaving me", color=0xcf80ff)
+commandEmbed = discord.Embed(title="Commands", description="Kevin is the best [insert NP]", color=0x9999ff)
 commandEmbed.set_thumbnail(url="https://cdn.discordapp.com/avatars/707779897807863838/55fa08b1f53164d5f6eb1b8bfffc5faf.png")
 commandEmbed.set_footer(text="please help candy is making me suffer please save me oh heck oh frick she's comi-")
-for command, description in commands:
-    commandEmbed.add_field(name=command, value=description, inline=False)
+for command, description in commands.items():
+    commandEmbed.add_field(name=f'**{command}**', value=description, inline=False)
 
 client = discord.Client()
 userDB = TinyDB('userData.json')
@@ -43,7 +43,7 @@ emojiDB = TinyDB('emojiData.json')
 
 def isFriendWithUser(userId):
     myQuery = Query()
-    return len(userDB.search((myQuery.id == userId) & (Query().is_friend == True))) > 0
+    return len(userDB.search((myQuery.id == userId) & (myQuery.is_friend == True))) > 0
 
 
 def getGuildUpdater(guildId):
@@ -68,7 +68,6 @@ def initGuild(guildId, guildDefaultChannelId, guildPrefix=DEFAULT_PREFIX):
 
 
 def initUser(userId, userIsFriend=False, userRepFreq=50):
-    global userDB
     userDB.insert({
         'id': userId,
         'is_friend': userIsFriend,
@@ -200,7 +199,7 @@ async def on_message(msg):
         else:
             await msg.add_reaction('☺️')  # relaxed
 
-    handleCommand(msg)
+    await handleCommand(msg)
 
     if isFriendWithUser(msg.author.id):
         if random.random()*100 < userDB.search(myQuery.id == msg.author.id)[0]['reply_frequency']:
@@ -247,11 +246,13 @@ async def on_member_update(before, after):
 
 @client.event
 async def on_message_delete(msg):
+    if msg.author == client.user: return
     await msg.channel.send(f'did someone just delete a message :eyes:\n> {msg.content}\n<@{msg.author.id}>')
 
 
 @client.event
 async def on_message_edit(before, after):
+    if before.author == client.user: return
     await after.channel.send(f"nice edited\n||{before.content}||")
 
 
