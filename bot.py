@@ -13,16 +13,37 @@ activities = {discord.ActivityType.playing: 'playing',\
               discord.ActivityType.watching: 'watching'}
 
 commands = {'be my friend': 'Friendship!(allows me to react to your messages, activities, status, etc.)',\
-            'shut up': 'End friendship...(disallows me to react to your messages, activities, status, etc.)',\
-            'set prefix': 'Sets my prefix in this server',\
-            'reset prefix': 'Resets my prefix in this server to its default. You can also mention me and shout out help to reset ;p',\
+            'am i your friend': 'Checks whether you are a friend of mine or not! :P',\
+            'commands': 'Displays all available commands',\
             'set default channel': "Sets the default channel to the current channel. I will react to my friends' updates in this channel",\
+            'set emoji freq': 'A number from 0-100 that determines how often I will send an emoji when replying to your messages. Remember, you must make friends with me first ;)',\
+            'set prefix': 'Sets my prefix in this server',\
             'set rep freq': 'A number from 0-100 that determines how often I will reply to your messages. Remember, you must make friends with me first ;)',\
-            'commands': 'Displays all available commands'}
+            'shut up': 'End friendship...(disallows me to react to your messages, activities, status, etc.)',\
+            'reset prefix': 'Resets my prefix in this server to its default. You can also mention me and shout out help to reset ;p',\
+            }
 
 client = discord.Client()
 userDB = TinyDB('userData.json')
 guildDB = TinyDB('guildData.json')
+emojiDB = TinyDB('emojiData.json')
+#to do: when finding default channel find the first text channel that it has perm to send msgs
+#       instead of just the first txtchan of all txtchans
+
+def isFriendWithUser(userId):
+  global userDB
+  myQuery = Query()
+  return len(userDB.search((myQuery.id == userId) & (Query().is_friend == True))) > 0
+
+def initGuild(guildId, guildDefaultChannelId, guildPrefix=DEFAULT_PREFIX):
+  global guildDB
+  guildDB.insert({'id': guildId, 'default_channel_id': guildDefaultChannelId, 'prefix': guildPrefix})
+  return True
+
+def initUser(userId, userIsFriend=False, userRepFreq=50):
+  global userDB
+  userDB.insert({'id': userId, 'is_friend': userIsFriend, 'reply_frequency': userRepFreq})
+  return True
 
 @client.event
 async def on_ready():
@@ -31,19 +52,18 @@ async def on_ready():
   for guild in client.guilds:
     #if guild.id != 678357164510806046: continue
     if len(guildDB.search(myQuery.id == guild.id)) == 0:
-      guildDB.insert({'id': guild.id, 'default_channel_id': guild.text_channels[0].id, 'prefix': DEFAULT_PREFIX})
+      initGuild(guild.id, guild.text_channels[0].id)
     for member in guild.members:
       if member != client.user and len(userDB.search(myQuery.id == member.id)) == 0:
-        userDB.insert({'id': member.id, 'is_friend': False, 'reply_frequency': 50})
+        initUser(member.id)
   
 
 @client.event
 async def on_message(message):
-  print(message.content)
+  print(message.author.name + ' (' + str(message.author.id) + '): ' + message.content)
   if message.author == client.user:
     return
   myQuery = Query()
-  isFriendWithUser = len(userDB.search(myQuery.id == message.author.id and myQuery.is_friend == True)) != 0
 
   #despacito
   if message.author.id == 268517328935845915: #kevoon
@@ -66,7 +86,7 @@ async def on_message(message):
           roleStrs = [role.name for role in member.roles]
           if 'bot' in roleStrs:
             strToGreet += 'Hi my fellow bot ' + member.name
-          elif len(userDB.search(myQuery.id == member.id and myQuery.is_friend == True)) > 0:
+          elif isFriendWithUser(member.id):
             strToGreet += 'Hi my friend ' + member.name + ' :p'
           else:
             strToGreet += 'Hello ' + member.name
@@ -81,15 +101,14 @@ async def on_message(message):
       if key in lowerCaseStr:
         if key == 'be my friend':
           userDB.update({'is_friend': True}, myQuery.id == message.author.id)
-          isFriendWithUser = True
           await message.channel.send('Sure! I hope you dont find me too annoying :P')
 
         elif key == 'shut up':
-          if not isFriendWithUser:
+          if not isFriendWithUser(message.author.id):
             await message.channel.send("...but I'm not even ur friend ;-;")
           else:
+            print(userDB.search(myQuery.id==message.author.id))
             userDB.update({'is_friend': False}, myQuery.id == message.author.id)
-            isFriendWithUser = False
             await message.channel.send('awww okay ://')
 
         elif key == 'change prefix':
@@ -109,7 +128,7 @@ async def on_message(message):
           await message.channel.send('Prefix reset to '+DEFAULT_PREFIX)
 
         elif key == 'set rep freq':
-          if not isFriendWithUser:
+          if not isFriendWithUser(message.author.id):
             await message.channel.send('Remember, you must make friends with me first ;)')
           else:
             freq = lowerCaseStr[(lowerCaseStr.index('set rep freq')+len('set rep freq')+1):]
@@ -122,6 +141,13 @@ async def on_message(message):
             except:
               await message.channel.send('Invalid :( please enter a number from 0-100')
 
+        elif key == 'set emoji freq':
+          await message.channel.send('developing...')
+
+        elif key == 'am i your friend':
+          if isFriendWithUser(message.author.id):
+            await message.channel.send('yes! ;p')
+          else: await message.channel.send('umm no...;-; why not make friends with me?')
         elif key == 'commands':
           output = '```\n' + client.user.name + ' Commands:\n\n'
           for command in commands:
@@ -130,17 +156,18 @@ async def on_message(message):
           await message.channel.send(output)
         break
 
-  if isFriendWithUser:
+  if isFriendWithUser(message.author.id):
     if random.random()*100 < userDB.search(myQuery.id == message.author.id)[0]['reply_frequency']:
-      await message.channel.send('test reply')
+      reply = 'no u'
+      #if random.random()*100 < emoji_freq: reply += ' ' + random.choice(text_emojis)
+      await message.channel.send(reply)
 
 @client.event
 async def on_member_update(before, after):
   if before == client.user:
     return
   myQuery = Query()
-  isFriendWithUser = len(userDB.search(myQuery.id == before.id and myQuery.is_friend == True)) != 0
-  if not isFriendWithUser:
+  if not isFriendWithUser(before.id):
     return
   channelId = guildDB.search(myQuery.id == before.guild.id)[0]["default_channel_id"]
   channelToSend = before.guild.get_channel(channelId)
@@ -176,5 +203,29 @@ async def on_message_delete(message):
 @client.event
 async def on_message_edit(before, after):
   await after.channel.send("nice edited\n||" + before.content + "||")
+
+@client.event
+async def on_guild_channel_delete(channel):
+  myQuery = Query()
+  if guildDB.search(myQuery.id == channel.guild.id)[0]['default_channel'] == channel.id:
+    guildDB.update({'default_channel': channel.guild.text_channels[0].id}, myQuery.id == channel.guild.id)
+    await channel.guild.text_channels[0].send('aww :(( My default channel in this server has disappeared! Please set a new default channel for me or I will use this channel from now on ;p')
+
+@client.event
+async def on_member_join(member):
+  myQuery = Query()
+  if len(userDB.search(myQuery.id == member.id)) == 0:
+    initUser(member.id)
+    
+@client.event
+async def on_guild_join(guild):
+  initGuild(guild.id, guild.text_channels[0].id)
+  await guild.text_channels[0].send("Hi, I'm canned bot and I hope to make some friends here ;p")
+
+@client.event
+async def on_guild_remove(guild):
+  print("removed from guild " + guild.name)
+  myQuery = Query()
+  guildDB.remove(myQuery.id == guild.id)
 
 client.run(TOKEN)
