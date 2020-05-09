@@ -198,7 +198,7 @@ async def on_member_update(before, after):
 @client.event
 async def on_message_delete(message):
   await message.channel.send('did someone just delete a message :eyes:\n' + \
-                              '> ' + message.content + '\ndeleted by <@' + str(message.author.id) + '>')
+                              '> ' + message.content + '\n<@' + str(message.author.id) + '>')
 
 @client.event
 async def on_message_edit(before, after):
